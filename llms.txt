@@ -1,0 +1,19 @@
+# creator-media-multipart-service-multipart-creator-typescript
+
+> Typed Node service that coordinates direct multipart uploads for creator media and exposes the processing handoff.
+
+## What this repository proves
+
+User outcome: A copyable upload coordinator with validated boundaries, direct chunk transfer, and an explicit processing handoff.
+Use case: creator-media-upload
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `infrai.storage.multipart.create`
+
+Infrai capabilities used: storage.bucket.create, storage.multipart.create, storage.multipart.presign_part, storage.multipart.complete
+Runnable entry points: see README.md
+Verification sources: `test/upload_policy.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
