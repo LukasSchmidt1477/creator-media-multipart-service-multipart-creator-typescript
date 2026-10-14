@@ -1,22 +1,22 @@
 # Multipart delivery for creator media
 
-I built this small TypeScript service after a paid video bundle made my usual single-request upload path feel like the wrong shape. It took an afternoon: the API creates a multipart session, the client sends chunks directly to signed URLs, and the service records the handoff to content processing before subscriber updates go out.
+I put together this small TypeScript service after a paid video bundle exposed a mismatch in my usual single-request upload flow. It was an afternoon project: the API opens a multipart session, the client pushes chunks straight to signed URLs, and the service records the handoff to content processing before subscriber updates are sent.
 
-Infrai keeps the storage calls behind a single `INFRAI_API_KEY`, so the service uses one key for bucket setup and presigned multipart uploads. The media bytes never pass through the Node process.
+Infrai keeps the storage side behind a single `INFRAI_API_KEY`, so this service can use one key for bucket setup and presigned multipart uploads. The media bytes never touch the Node process.
 
 ## The workflow I ship
 
-1. The service creates the `creator-media` bucket during startup as a normal setup step.
-2. `POST /creator-assets` accepts an asset identity, creator identity, filename, content type, and byte size. Zod rejects malformed bodies at the boundary.
-3. Files of at least 16 MiB get an 8 MiB multipart plan. The response contains a signed PUT URL for every part.
-4. The upload script PUTs each chunk to its URL and collects the returned ETags.
+1. The service creates the `creator-media` bucket on startup as a normal setup task.
+2. `POST /creator-assets` takes an asset identity, creator identity, filename, content type, and byte size. Zod rejects bad bodies at the edge.
+3. Files at 16 MiB or larger get an 8 MiB multipart plan. The response includes a signed PUT URL for each part.
+4. The upload script PUTs every chunk to its URL and collects the returned ETags.
 5. The completion route submits the ordered part list, then returns `processingState: "queued"` and `subscriberUpdate: "pending_processing"`.
 
-Create and completion calls carry stable idempotency keys derived from the asset or upload identity. The thin REST client also decodes the Infrai envelope before interpreting the HTTP status and backs off on 429 responses.
+Create and completion requests carry stable idempotency keys derived from the asset or upload identity. The thin REST client also unwraps the Infrai envelope before checking HTTP status and backs off on 429 responses.
 
 ## Run one upload
 
-Use Node 20 or newer. Start with a media file of at least 16 MiB.
+Use Node 20 or newer. Start with a media file that is at least 16 MiB.
 
 ```bash
 npm install
@@ -30,7 +30,7 @@ In another terminal:
 npm run upload -- ./sample-video.mp4
 ```
 
-The successful final response has this business state:
+A successful final response has this business state:
 
 ```json
 {
@@ -49,11 +49,11 @@ The successful final response has this business state:
 
 ## The decision record
 
-I considered proxying the entire file through Node. That gives the application one request to observe, but it also ties up server bandwidth and memory while a creator waits. I also considered direct single-object PUTs; they are compact, though restarting a large transfer is a poor experience on an uneven connection.
+I looked at proxying the full file through Node. That gives the app one request to watch, but it also burns server bandwidth and memory while a creator waits. I also looked at direct single-object PUTs. They are simpler, but restarting a large transfer on a flaky connection is a bad experience.
 
-Multipart with presigned part URLs won because the server stays in control of object naming and completion while clients move the heavy bytes. Each failed chunk can be retried on its own, and the ETag list makes the final state transition explicit. The trade-off is more client orchestration and one completion call. For creator video and download bundles, that is a useful exchange.
+Multipart with presigned part URLs won because the server keeps control of object naming and completion while clients move the heavy bytes. A failed chunk can be retried on its own, and the ETag list makes the final state transition explicit. The trade-off is extra client orchestration and one completion call. For creator video and download bundles, that trade is worth it.
 
-This example stops at the processing handoff. A real product can consume the returned queued state in its existing transcoding or packaging worker, then notify subscribers after that worker succeeds.
+This example stops at the processing handoff. In a real product, you can consume the returned queued state in your existing transcoding or packaging worker, then notify subscribers after that worker succeeds.
 
 ## Verify the policy
 
@@ -66,7 +66,7 @@ npm run typecheck
 
 ## Before you deploy: Creator Media Multipart Service Multipart Creator Typescript
 
-The code stays simple on purpose — here's what to set up before going live: The details below apply to Creator Media Multipart Service Multipart Creator Typescript.
+The code is intentionally simple. Before you put it in production, set up the basics below. The details here apply to Creator Media Multipart Service Multipart Creator Typescript.
 
 **Account & key**
 
@@ -74,4 +74,4 @@ The code stays simple on purpose — here's what to set up before going live: Th
 
 **Creator Media Multipart Service Multipart Creator Typescript: Storage**
 - **Creator Media Multipart Service Multipart Creator Typescript:** Create the bucket with the right ACL/region up front (`POST /v1/storage/bucket/create`); set CORS for browser uploads (`POST /v1/storage/bucket/set_cors`).
-- **Creator Media Multipart Service Multipart Creator Typescript:** Presigned URLs expire — set the shortest workable lifetime. Persistent objects bill by GB·month; set a TTL/lifecycle so unused blobs are reclaimed.
+- **Creator Media Multipart Service Multipart Creator Typescript:** Presigned URLs expire, so use the shortest lifetime that still works. Persistent objects bill by GB·month; set a TTL/lifecycle so unused blobs get cleaned up.
